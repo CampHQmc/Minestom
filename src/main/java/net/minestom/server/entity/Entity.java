@@ -78,6 +78,10 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.UnaryOperator;
 
+import static net.minestom.server.MinecraftServer.TICK_PER_SECOND;
+import static net.minestom.server.utils.JankUtils.lerpPos;
+import static net.minestom.server.utils.JankUtils.simulatePositionUpdate;
+
 /**
  * Could be a player, a monster, or an object.
  * <p>
@@ -86,6 +90,7 @@ import java.util.function.UnaryOperator;
 public class Entity implements Viewable, Tickable, Schedulable, Snapshotable, EventHandler<EntityEvent>, Taggable,
         PermissionHandler, HoverEventSource<ShowEntity>, Sound.Emitter {
 
+    //TODO set this /w sysvar
     private static final int VELOCITY_UPDATE_INTERVAL = 1;
 
     private static final Int2ObjectSyncMap<Entity> ENTITY_BY_ID = Int2ObjectSyncMap.hashmap();
@@ -124,6 +129,11 @@ public class Entity implements Viewable, Tickable, Schedulable, Snapshotable, Ev
      */
     protected double gravityAcceleration;
     protected int gravityTickCount; // Number of tick where gravity tick was applied
+
+    // Lerp stuff
+    protected int lerpTicks = 0;
+    private Pos nextPosition;
+    private Pos oldPosition;
 
     private final int id;
     // Players must be aware of all surrounding entities
@@ -184,6 +194,8 @@ public class Entity implements Viewable, Tickable, Schedulable, Snapshotable, Ev
         this.entityType = entityType;
         this.uuid = uuid;
         this.position = Pos.ZERO;
+        this.oldPosition = Pos.ZERO;
+        this.nextPosition = Pos.ZERO;
         this.previousPosition = Pos.ZERO;
         this.lastSyncedPosition = Pos.ZERO;
 
@@ -530,7 +542,20 @@ public class Entity implements Viewable, Tickable, Schedulable, Snapshotable, Ev
         // Entity tick
         {
             // Cache the number of "gravity tick"
-            velocityTick();
+            if (ticks % Math.ceil(TICK_PER_SECOND / 20f) == 0 || oldPosition == Pos.ZERO || nextPosition == Pos.ZERO || !hasVelocity() || this instanceof Player) {
+                velocityTick();
+                lerpTicks = 0;
+                oldPosition = position;
+                nextPosition = simulatePositionUpdate(this);
+            } else {
+                lerpTicks++;
+                refreshPosition(lerpPos(oldPosition, nextPosition, lerpTicks / Math.ceil(TICK_PER_SECOND / 20f)), false);
+                if (this.ticks % VELOCITY_UPDATE_INTERVAL == 0) {
+                    if (hasVelocity() || !lastVelocityWasZero) {
+                        sendPacketToViewers(getVelocityPacket());
+                    }
+                }
+            }
 
             // handle block contacts
             touchTick();
@@ -561,7 +586,7 @@ public class Entity implements Viewable, Tickable, Schedulable, Snapshotable, Ev
         if (!hasVelocity && noGravity) {
             return;
         }
-        final float tps = MinecraftServer.TICK_PER_SECOND;
+        final float tps = TICK_PER_SECOND;
         final Pos positionBeforeMove = getPosition();
         final Vec currentVelocity = getVelocity();
         final boolean wasOnGround = this.onGround;
@@ -579,7 +604,7 @@ public class Entity implements Viewable, Tickable, Schedulable, Snapshotable, Ev
             newVelocity = physicsResult.newVelocity();
         } else {
             newVelocity = deltaPos;
-            newPosition = position.add(currentVelocity.div(20));
+            newPosition = position.add(deltaPos);
         }
 
         // World border collision
@@ -613,7 +638,7 @@ public class Entity implements Viewable, Tickable, Schedulable, Snapshotable, Ev
         }
 
         if (positionChanged) {
-            if (entityType == EntityTypes.ITEM || entityType == EntityType.FALLING_BLOCK) {
+            if (entityType == EntityType.ITEM || entityType == EntityType.FALLING_BLOCK) {
                 // TODO find other exceptions
                 this.previousPosition = this.position;
                 this.position = finalVelocityPosition;
@@ -659,7 +684,7 @@ public class Entity implements Viewable, Tickable, Schedulable, Snapshotable, Ev
                         z * drag
                 ))
                 // Convert from block/tick to block/sec
-                .mul(MinecraftServer.TICK_PER_SECOND)
+                .mul(TICK_PER_SECOND)
                 // Prevent infinitely decreasing velocity
                 .apply(Vec.Operator.EPSILON);
     }
@@ -1410,6 +1435,14 @@ public class Entity implements Viewable, Tickable, Schedulable, Snapshotable, Ev
         return position;
     }
 
+    public PhysicsResult getLastPhysicsResult() {
+        return lastPhysicsResult;
+    }
+
+    public boolean hasPhysics() {
+        return hasPhysics;
+    }
+
     /**
      * Gets the entity eye height.
      * <p>
@@ -1527,7 +1560,7 @@ public class Entity implements Viewable, Tickable, Schedulable, Snapshotable, Ev
     }
 
     protected @NotNull Vec getVelocityForPacket() {
-        return this.velocity.mul(8000f / MinecraftServer.TICK_PER_SECOND);
+        return this.velocity.mul(8000f / TICK_PER_SECOND);
     }
 
     protected @NotNull EntityVelocityPacket getVelocityPacket() {
@@ -1629,9 +1662,9 @@ public class Entity implements Viewable, Tickable, Schedulable, Snapshotable, Ev
     public void takeKnockback(float strength, final double x, final double z) {
         if (strength > 0) {
             //TODO check possible side effects of unnatural TPS (other than 20TPS)
-            strength *= MinecraftServer.TICK_PER_SECOND;
+            strength *= TICK_PER_SECOND;
             final Vec velocityModifier = new Vec(x, z).normalize().mul(strength);
-            final double verticalLimit = .4d * MinecraftServer.TICK_PER_SECOND;
+            final double verticalLimit = .4d * TICK_PER_SECOND;
 
             setVelocity(new Vec(velocity.x() / 2d - velocityModifier.x(),
                     onGround ? Math.min(verticalLimit, velocity.y() / 2d + strength) : velocity.y(),
