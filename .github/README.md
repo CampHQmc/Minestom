@@ -1,3 +1,5 @@
+# **THIS FORK IS NOT STABLE AND IT'S NOT PRECISE + IT CONTAINS JANK. BEWARE.**
+---
 ![banner](banner_dark.png#gh-dark-mode-only)
 ![banner](banner_light.png#gh-light-mode-only)
 
@@ -33,7 +35,7 @@ This means you need to add Minestom as a dependency, add your code and compile b
 
 For adding the required repositories and dependencies, [check this out](https://wiki.minestom.net/setup/dependencies)
 
-The newest version can be found [here: ![](https://jitpack.io/v/Minestom/Minestom.svg)](https://jitpack.io/#Minestom/Minestom)
+The newest version can be found [here: ![](https://jitpack.io/v/Minestom/Minestom.svg)](https://jitpack.io/#CampHQmc/Minestom)
 
 > Our own WIP implementation for Vanilla can be found [here](https://github.com/Minestom/VanillaReimplementation).
 
