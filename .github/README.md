@@ -35,7 +35,7 @@ This means you need to add Minestom as a dependency, add your code and compile b
 
 For adding the required repositories and dependencies, [check this out](https://wiki.minestom.net/setup/dependencies)
 
-The newest version can be found [here: ![](https://jitpack.io/v/Minestom/Minestom.svg)](https://jitpack.io/#CampHQmc/Minestom)
+The newest version can be found [here: ![](https://jitpack.io/v/CampHQmc/Minestom.svg)](https://jitpack.io/#CampHQmc/Minestom)
 
 > Our own WIP implementation for Vanilla can be found [here](https://github.com/Minestom/VanillaReimplementation).
 
